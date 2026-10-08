@@ -487,7 +487,9 @@ const Diagram = (() => {
       /* The moving part. Each flow's packet is offset in time so a fan-out
          reads as one message being copied outward rather than three unrelated
          dots, and `dur` is uniform so speed stays consistent across scenarios. */
-      const packet = el("circle", { r: 5, class: "dg-packet" });
+      const packet = el("circle", {
+        r: 5, class: "dg-packet", "data-from": f.from, "data-to": f.to,
+      });
 
       /* SMIL animation is not controlled by CSS, so honouring reduced motion
          means not creating the animation at all. The packet is parked midway
@@ -591,6 +593,20 @@ const Diagram = (() => {
     const gate = diagram.liveWhen;
     const flowing = !gate || Boolean(state.nodes?.[gate]?.running);
     svg.classList.toggle("is-idle", !flowing);
+
+    /* Each flow also stops when an app at either end is stopped: a consumer
+       that is down receives nothing, even while the publisher keeps sending
+       to the broker. One-shot nodes such as terraform apply never count. */
+    const stopped = new Set(
+      Object.entries(state.nodes || {})
+        .filter(([, s]) => s.longRunning && !s.running)
+        .map(([id]) => id)
+    );
+
+    for (const packet of svg.querySelectorAll(".dg-packet")) {
+      const off = stopped.has(packet.dataset.from) || stopped.has(packet.dataset.to);
+      packet.classList.toggle("is-off", off);
+    }
   }
 
   return { render, paint };

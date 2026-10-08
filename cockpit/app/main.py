@@ -335,6 +335,7 @@ async def scenario_state(scenario_id: str):
         node_id = node.get("id")
         action_id = node.get("action")
         run = manager.get(f"{scenario_id}:{action_id}") if action_id else None
+        action = scenario.action(action_id) if action_id else None
 
         # `group` ties an item to one of the node's contained boxes, so a
         # broker holding four kinds of configuration can show a count per kind
@@ -350,6 +351,9 @@ async def scenario_state(scenario_id: str):
             "action": action_id,
             "run": run.status() if run else None,
             "running": bool(run and run.is_active),
+            # Only a long-running node can be "stopped"; a one-shot like
+            # terraform apply is never running once it has done its job.
+            "longRunning": bool(action and action.long_running),
             "checklist": checklist,
             "ready": all(c["present"] for c in checklist) if checklist else None,
         }

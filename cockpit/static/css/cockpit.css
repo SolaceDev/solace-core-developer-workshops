@@ -1193,13 +1193,15 @@ a { color: var(--text-link); }
   fill: var(--text-muted);
 }
 
-/* The moving part. Packets are hidden when the publishing process is not
-   actually running, so the diagram can never imply traffic that is not there. */
+/* The moving part. Packets are hidden when the publishing process, or an app
+   at either end of the flow, is not actually running, so the diagram can
+   never imply traffic that is not there. */
 .dg-packet {
   fill: var(--green-bright);
 }
 
-.dg.is-idle .dg-packet { opacity: 0; }
+.dg.is-idle .dg-packet,
+.dg-packet.is-off { opacity: 0; }
 
 /* Reduced motion is handled in diagram.js -- SMIL animation cannot be stopped
    from CSS -- which parks each packet midway along its path. This only softens

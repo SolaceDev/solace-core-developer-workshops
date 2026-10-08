@@ -330,12 +330,29 @@ async def scenario_state(scenario_id: str):
 
     found = dict(await asyncio.gather(*(probe(p) for p in paths))) if paths else {}
 
+    # A failure mode can swap a node's app for a broken copy of it (a pricing
+    # service whose database is down). The copy is not a node of its own, so
+    # while it runs the node it stands in for is still live in the picture.
+    node_actions = {n.get("action") for n in nodes}
+    stand_ins: dict = {}
+    for mode in scenario.failure_modes:
+        logs = mode.get("logs")
+        if mode.get("node") and logs and logs not in node_actions:
+            stand_ins.setdefault(mode["node"], []).append(logs)
+
+    def active(action_id):
+        run = manager.get(f"{scenario_id}:{action_id}")
+        return run if run and run.is_active else None
+
     out = {}
     for node in nodes:
         node_id = node.get("id")
         action_id = node.get("action")
         run = manager.get(f"{scenario_id}:{action_id}") if action_id else None
         action = scenario.action(action_id) if action_id else None
+        live = (run if run and run.is_active else None) or next(
+            filter(None, (active(a) for a in stand_ins.get(node_id, []))), None
+        )
 
         # `group` ties an item to one of the node's contained boxes, so a
         # broker holding four kinds of configuration can show a count per kind
@@ -354,6 +371,11 @@ async def scenario_state(scenario_id: str):
             # Only a long-running node can be "stopped"; a one-shot like
             # terraform apply is never running once it has done its job.
             "longRunning": bool(action and action.long_running),
+            # Drives the diagram's packets: running, or replaced by a failure
+            # mode's stand-in. `liveSince` orders consumers on an exclusive
+            # queue, where the one that bound first is the active one.
+            "live": live is not None,
+            "liveSince": live.started_at if live else None,
             "checklist": checklist,
             "ready": all(c["present"] for c in checklist) if checklist else None,
         }

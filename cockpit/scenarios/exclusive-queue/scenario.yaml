@@ -62,7 +62,8 @@ diagram:
           semp: /msgVpns/{vpn}/aclProfiles/acl-excl
     - id: erpa
       label: ERP Connector A
-      sublabel: active
+      # Replaced by "active" or "standby" while it runs; see oneOf below.
+      sublabel: svc-excl-erp
       kind: app
       col: 2
       action: erp-a
@@ -73,7 +74,7 @@ diagram:
           semp: /msgVpns/{vpn}/queues/q.excl.erp-orders
     - id: erpb
       label: ERP Connector B
-      sublabel: standby
+      sublabel: svc-excl-erp
       kind: app
       col: 2
       action: erp-b
@@ -84,7 +85,9 @@ diagram:
           semp: /msgVpns/{vpn}/queues/q.excl.erp-orders
   flows:
     - { from: webshop, to: broker, label: order placed, delay: 0 }
-    - { from: broker, to: erpa, label: one at a time, delay: 1.0 }
+    # One group, so only the connector that is active on the queue gets packets.
+    - { from: broker, to: erpa, label: one at a time, delay: 1.0, oneOf: erp }
+    - { from: broker, to: erpb, delay: 1.0, oneOf: erp }
 
 actions:
   - id: apply

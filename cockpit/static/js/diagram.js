@@ -216,6 +216,7 @@ const Diagram = (() => {
     if (n.sublabel) {
       g.append(el("text", {
         x: cx, y: n.y + 48 + shift, class: "dg-node__sub", "text-anchor": "middle",
+        "data-sublabel": n.sublabel,
       }, n.sublabel));
     }
 
@@ -490,6 +491,7 @@ const Diagram = (() => {
       const packet = el("circle", {
         r: 5, class: "dg-packet", "data-from": f.from, "data-to": f.to,
       });
+      if (f.oneOf) packet.setAttribute("data-one-of", f.oneOf);
 
       /* SMIL animation is not controlled by CSS, so honouring reduced motion
          means not creating the animation at all. The packet is parked midway
@@ -597,14 +599,41 @@ const Diagram = (() => {
     /* Each flow also stops when an app at either end is stopped: a consumer
        that is down receives nothing, even while the publisher keeps sending
        to the broker. One-shot nodes such as terraform apply never count. */
+    const nodes = state.nodes || {};
     const stopped = new Set(
-      Object.entries(state.nodes || {})
-        .filter(([, s]) => s.longRunning && !s.running)
+      Object.entries(nodes)
+        .filter(([, s]) => s.longRunning && !s.live)
         .map(([id]) => id)
     );
 
+    /* Flows sharing a `oneOf` group are consumers of one exclusive queue: only
+       the live consumer that bound first receives, the rest are on standby.
+       A restarted consumer binds last, so it rejoins as the standby. */
+    const activeOf = new Map();
+    const groups = new Map();
+    for (const f of diagram.flows || []) {
+      if (!f.oneOf) continue;
+      if (!groups.has(f.oneOf)) groups.set(f.oneOf, []);
+      groups.get(f.oneOf).push(f.to);
+    }
+    for (const [group, targets] of groups) {
+      const first = targets
+        .filter((id) => nodes[id]?.live)
+        .sort((a, b) => nodes[a].liveSince - nodes[b].liveSince)[0];
+      activeOf.set(group, first);
+      for (const id of targets) {
+        const sub = svg.querySelector(`.dg-node[data-node="${id}"] .dg-node__sub`);
+        if (!sub) continue;
+        sub.textContent = !nodes[id]?.live
+          ? sub.dataset.sublabel
+          : id === first ? "active" : "standby";
+      }
+    }
+
     for (const packet of svg.querySelectorAll(".dg-packet")) {
-      const off = stopped.has(packet.dataset.from) || stopped.has(packet.dataset.to);
+      const { from, to, oneOf } = packet.dataset;
+      const off = stopped.has(from) || stopped.has(to)
+        || (oneOf !== undefined && activeOf.get(oneOf) !== to);
       packet.classList.toggle("is-off", off);
     }
   }

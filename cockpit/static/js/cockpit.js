@@ -465,7 +465,14 @@
                   })
                 ),
                 h("pre", { class: "panel__log fm__log" }),
-                h("p", { class: "fm__output-hint", text: "Errors from the broker show in red. The same output is under this node's logs button in the diagram while the failure is in effect." })
+                h("p", {
+                  class: "fm__output-hint",
+                  text: `Errors from the broker show in red. The same output is under ${
+                    ownedByNode(scenario, mode.logs)?.label
+                      ? `${ownedByNode(scenario, mode.logs).label}'s logs`
+                      : "this node's logs"
+                  } in the diagram while the failure is in effect.`,
+                })
               ),
             h("p", { class: "fm__watch-title", text: "What to look for" }),
             h("p", { class: "fm__watch-text", text: mode.watch })
@@ -486,6 +493,10 @@
       })
     );
   }
+
+  // The diagram node whose own app is this action, if any.
+  const ownedByNode = (scenario, actionId) =>
+    (scenario.diagram?.nodes || []).find((n) => n.action === actionId);
 
   const failureActive = (scenario, mode) =>
     state.failure?.scenarioId === scenario.id && state.failure?.modeId === mode.id;
@@ -924,9 +935,13 @@
       : null;
     /* While a failure mode marks this node, its logs are the failure's, not
        the node's own app: a refused subscription happens in a separate
-       process, and the healthy subscriber's log would show nothing wrong. */
+       process, and the healthy subscriber's log would show nothing wrong.
+       Not when the failure's log is another node's app (a standby taking
+       over): that log belongs under that node, and showing it here would
+       make a stopped app look as if it were still consuming. */
     const failing = (scenario.failureModes || []).find(
       (m) => m.node === nodeId && m.logs && failureActive(scenario, m)
+        && !ownedByNode(scenario, m.logs)
     );
     const logAction = failing
       ? scenario.actions.find((a) => a.id === failing.logs) || action

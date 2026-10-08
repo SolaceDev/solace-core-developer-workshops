@@ -204,6 +204,16 @@ diagram:
     - { from: enrich, to: broker, label: enriched, delay: 1.2 }
 ```
 
+A flow's packets also stop while a long-running app at either end is
+stopped. Consumers of one exclusive queue share a `oneOf` group, so only the
+one that bound first animates and its sublabel reads "active", the others
+"standby":
+
+```yaml
+    - { from: broker, to: erpa, oneOf: erp }
+    - { from: broker, to: erpb, oneOf: erp }
+```
+
 Rules the checker enforces, because they are what the workshop teaches:
 
 - Exactly **one** `kind: broker` node per diagram.

@@ -1,10 +1,10 @@
 // Package pubsub implements the publish-and-subscribe scenario.
 //
-// Acme Air publishes flight, baggage and booking events to three topics.
-// Several subscribers listen, each connecting as its own client username with
-// its own ACL profile, and each receives only the domain it is authorised for.
-// Every client shares one client profile, so any difference in what they see
-// comes from access control rather than from application code. The publisher
+// Acme Air publishes flight, baggage and booking events to three topics. A
+// baggage subscriber asks for only the baggage events, and the broker discards
+// the rest because nothing subscribed to them. Each client connects as its own
+// client username with its own ACL profile, which decides which topics it may
+// ask for at all. The publisher
 // and the subscriber below are deliberately unremarkable: the scenario is
 // carried by broker configuration, and the code should make that obvious.
 package pubsub
@@ -116,9 +116,9 @@ func Publish(args []string) {
 
 // Subscribe runs one Acme Air subscriber until it is stopped.
 //
-// One function serves every subscriber role; which role it plays is decided
-// entirely by the flags the scenario passes in. Same code, same client
-// profile, different ACL profiles.
+// Which role it plays is decided entirely by the flags the scenario passes
+// in, so the forbidden-subscription failure mode reuses it unchanged with a
+// topic the ACL refuses.
 func Subscribe(args []string) {
 	fs := flag.NewFlagSet("pubsub subscribe", flag.ExitOnError)
 	role := fs.String("role", "", "label for log lines, e.g. baggage")

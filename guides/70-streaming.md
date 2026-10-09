@@ -26,21 +26,40 @@ Because the window slides rather than resetting on a clock boundary, a burst
 that straddles two minutes is still caught. Fixed windows miss exactly the
 cases someone trying to stay under a threshold would use.
 
-## Selecting a slice of a stream
+## Each app picks its own slice
 
-The US desk subscribes to:
+The gateway publishes every authorization once, to a topic that says what
+happened, where, and to which card:
 
 ```
-united/booking/payment/*/v1/us/>
+united/booking/payment/authorized/v1/{region}/{card}/{txnId}
 ```
 
-One `*` at the action level covers both `authorized` and `flagged`, and the
-`us` level pins it to one region. Payments in `eu` and `apac` never arrive at
-this application.
+The fraud rule publishes its flags into the same hierarchy, with `flagged` in
+place of `authorized`. Nobody sends anything to a particular app. Each app
+says which part of the stream it wants, and the broker hands it exactly that.
+The labels on the diagram's lines show each subscription after the shared
+`united/booking/payment/` prefix.
 
-It applies no filter of its own. Data residency became a subscription, which
-the broker enforces, rather than a rule each application has to be trusted to
+| App | How it subscribes | Subscription | What it gets |
+| --- | --- | --- | --- |
+| Fraud rule | Queue `q.streaming.fraud` | `united/booking/payment/authorized/v1/>` | Every authorization, every region, no flags |
+| US desk | Direct | `united/booking/payment/*/v1/us/>` | Authorizations and flags, US only |
+
+**The fraud rule's queue** names `authorized`, so its own flags never come
+back to it. If it subscribed to `payment/>` instead, every flag it published
+would land in its own queue as input. The queue also means nothing is lost
+while the rule restarts. Open **Fraud queue subscription** under **On the
+broker** to see the subscription on the queue itself.
+
+**The US desk** uses one `*` at the action level to take both `authorized`
+and `flagged`, and the `us` level to pin it to one region. Payments in `eu`
+and `apac` never reach it. Data residency becomes a subscription, which the
+broker enforces, rather than a rule each application has to be trusted to
 implement.
+
+Neither app filters anything in code. Compare the gateway's log with the
+desk's: roughly one line in three makes it to the desk.
 
 ## What a second instance would cost
 
@@ -74,5 +93,11 @@ cause and where you would meet it in production.
   this are a tuning exercise, not a truth.
 - Start a second fraud rule and confirm the flag count drops rather than
   doubling.
+- Run a desk for another region by hand and predict what it receives first:
+
+  ```bash
+  bash cockpit/apps/run.sh streaming watch --role eu-desk \
+    --user svc-streaming-watch --sub "united/booking/payment/*/v1/eu/>"
+  ```
 
 Next: [Surviving the Arrival](80-capstone-arrival.md).

@@ -92,7 +92,14 @@ const Diagram = (() => {
     return Math.max(NODE_W_WIDE, Math.ceil(CHILD_CHROME_W + longest * CHILD_CHAR_W));
   }
 
-  function layout(nodes) {
+  /* A flow label sits between two columns, so a long one (a full topic
+     subscription) widens the gap after its column rather than running into
+     the nodes either side. Edge labels are 9.5px monospace, a little under
+     6px a character; the margin keeps clear of the arrowheads. */
+  const LABEL_CHAR_W = 5.9;
+  const LABEL_MARGIN = 16;
+
+  function layout(nodes, flows = []) {
     const columns = new Map();
     for (const n of nodes) {
       const col = Number(n.col ?? 0);
@@ -120,12 +127,19 @@ const Diagram = (() => {
        and every node in a column still lines up on the left. */
     const colWidth = (c) => Math.max(...columns.get(c).map(nodeWidth));
 
+    const colOf = new Map(nodes.map((n) => [n.id, Number(n.col ?? 0)]));
+    const gapAfter = (col) => Math.max(COL_GAP, ...flows
+      .filter((f) => f.label && Math.min(colOf.get(f.from), colOf.get(f.to)) === col)
+      .map((f) => Math.ceil(f.label.length * LABEL_CHAR_W + LABEL_MARGIN * 2)));
+
     // Left edge of each column, accumulated so widths can differ.
     const colX = new Map();
     let x = PAD_X;
+    let lastGap = COL_GAP;
     colIndexes.forEach((col) => {
       colX.set(col, x);
-      x += colWidth(col) + COL_GAP;
+      lastGap = gapAfter(col);
+      x += colWidth(col) + lastGap;
     });
 
     const placed = new Map();
@@ -161,7 +175,7 @@ const Diagram = (() => {
       }
     }
 
-    const canvasW = x - COL_GAP + PAD_X;
+    const canvasW = x - lastGap + PAD_X;
     return { placed, canvasW, canvasH };
   }
 
@@ -410,7 +424,7 @@ const Diagram = (() => {
     const flows = diagram.flows || [];
     if (!nodes.length) return;
 
-    const { placed, canvasW, canvasH } = layout(nodes);
+    const { placed, canvasW, canvasH } = layout(nodes, flows);
 
     const svg = el("svg", {
       viewBox: `0 0 ${canvasW} ${canvasH}`,

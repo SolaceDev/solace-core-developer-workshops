@@ -1,9 +1,9 @@
 # Solace Core Developer Workshop
 
 A hands-on introduction to event-driven architecture on the Solace Broker. A
-short practice run on the dashboard itself, then nine sections, each one a
+short practice run on the dashboard itself, then eight sections, each one a
 working system you run, break and inspect: a broker configuration tour,
-publish and subscribe, the five patterns from the Real-Time Data Deep Dives
+publish and subscribe, four patterns from the Real-Time Data Deep Dives
 series, and two capstones that compose them.
 
 Everything runs in a container. There is nothing to install and no account to
@@ -35,7 +35,6 @@ finishes, start at [Getting started](guides/00-getting-started.md).
 | 30 | [Fan-out](guides/30-fan-out.md) | One event, many independent consumers |
 | 40 | [Shock absorber](guides/40-shock-absorber.md) | Absorbing a surge, competing consumers, redelivery, partitions |
 | 50 | [Processor](guides/50-processor.md) | Consume, transform, republish |
-| 60 | [Command and query](guides/60-cqrs.md) | Read models, and commands that survive a device being offline |
 | 70 | [Streaming](guides/70-streaming.md) | A stateful rule applied to data in motion |
 | 80 | [Surviving the Arrival](guides/80-capstone-arrival.md) | Capstone: absorber, partitions and fan-out together |
 | 90 | [Smart Shelf Pricing](guides/90-capstone-smart-shelf.md) | Capstone: streaming plus a read model that suppresses no-op writes |

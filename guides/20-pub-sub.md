@@ -1,9 +1,8 @@
 # Publish and subscribe
 
-Acme Air publishes flight, baggage and booking events. Four subscribers
-listen. Each receives only what it is authorised for, and every one of them
-runs the same code with the same client profile, so every difference you see
-comes from broker configuration.
+Acme Air publishes flight, baggage and booking events. One subscriber, the
+baggage service, listens for the baggage events and nothing else. The broker
+delivers those and throws the other two away, because nobody asked for them.
 
 Press **Play**.
 
@@ -36,27 +35,34 @@ Some rules that save pain later:
 - **No environment names.** `dev` and `prod` belong to different brokers, not
   different topic levels.
 
-## Two kinds of wildcard
+## Choosing a subscription
 
-Look at the four subscriber panes together.
-
-Flight ops, baggage and booking each take one domain with `>`, which matches
-everything from that level down:
+The baggage service subscribes to:
 
 ```
-acme/air/baggage/>
+acme/air/baggage/*/v1/*
 ```
 
-Audit takes a different shape:
+`*` matches exactly one level. So this reads as every baggage action, for
+every flight, in version 1. It is the most specific subscription that still
+catches every baggage event the app can read. You can see it on the line from
+the broker to Baggage in the diagram.
 
-```
-acme/air/*/*/v1/AC8763
-```
+`>` matches everything from that level down, so `acme/air/baggage/>` would
+also work today. It would also deliver a `v2` event the app cannot parse, or
+a topic with extra levels added later. Ask for what you can handle.
 
-`*` matches exactly one level. So this reads as every domain and every
-action, but only for flight AC8763. Watch its pane: it receives the flight
-and baggage events, and never the booking, because the booking's last level
-is a record locator rather than a flight number.
+Watch the publisher and the subscriber side by side. Three events go to the
+broker every round and one comes out. The flight and booking events match no
+subscription, so the broker discards them. With direct messaging that is not
+an error: nobody asked for them.
+
+## The ACL is the ceiling
+
+The baggage user's ACL profile allows `acme/air/baggage/>`. The app asks for
+less than that, which is fine. The ACL decides what a client may ask for, the
+subscription decides what it does ask for. Asking for something outside the
+ACL is refused, which is the first failure mode below.
 
 ## Break it
 
@@ -89,9 +95,11 @@ This is why the Play sequence starts the subscribers before the publisher.
 
 ## Try this
 
-- Give the audit subscriber `acme/air/*/*/v1/>` instead. Predict what changes
-  before you run it.
-- Check **Connected Clients** under **On the broker** while everything runs, and watch the
-  message counts diverge between the four subscribers.
+- Run the subscriber by hand with `acme/air/baggage/>`, then with
+  `acme/air/*/*/v1/AC8763`. Predict what each one receives before you run it.
+  The second is refused: the ACL only covers the baggage domain.
+- Check **Connected Clients** under **On the broker** while everything runs.
+  For every three messages the broker receives from the publisher, it sends
+  one to the subscriber.
 
 Next: [Fan-out](30-fan-out.md).

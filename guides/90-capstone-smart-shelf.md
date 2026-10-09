@@ -19,8 +19,8 @@ price per shelf, so nobody polls the system of record.
 Because the engine holds current state, it can tell whether a price actually
 changed. It publishes only when one did.
 
-That is two patterns working together: streaming supplies the inputs
-continuously, and the read model from command and query is what makes
+That is streaming working with a read model: streaming supplies the inputs
+continuously, and the engine's own copy of current state is what makes
 suppression possible. Without the state there is nothing to compare against,
 and every reading becomes a write.
 

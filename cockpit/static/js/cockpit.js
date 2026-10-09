@@ -1040,14 +1040,15 @@
 
   function renderPanelLogs(scenario, action, body, failing) {
     const pre = h("pre", { class: "panel__log" });
-    body.replaceChildren(
-      failing &&
-        h("p", {
+    // replaceChildren, unlike h(), turns undefined into the text "undefined",
+    // so the notice is only passed when there is one.
+    const notice = failing
+      ? h("p", {
           class: "panel__notice",
           text: `"${failing.title}" is in effect, so this shows the output of "${action.label}". Reset it to see this node's own log again.`,
-        }),
-      pre
-    );
+        })
+      : null;
+    body.replaceChildren(...(notice ? [notice] : []), pre);
 
     const append = (line) => {
       const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 40;

@@ -7,12 +7,16 @@ summary: >
   Here a rule runs against the payment stream while it moves: it keeps a
   rolling ten-second window per card and flags any card authorized more than
   three times inside it. A regional desk watches one slice of the same
-  stream and never sees the others.
+  stream and never sees the others. Neither app filters anything: each one
+  takes its own subset of the stream through a subscription, a queue
+  subscription for the fraud rule and a topic wildcard for the desk.
 
 objectives:
   - Apply a rule to events in motion rather than after they land in a database
   - See why a stream processor holds state, and how that differs from a filter
-  - Select one slice of a stream with a subscription instead of filtering in code
+  - Select a subset of a stream with a subscription instead of filtering in code
+  - Use a queue subscription to take every authorization and none of the flags
+  - Use a topic wildcard to take both event types for one region only
   - Consider what a second instance of a stateful processor would do to the window
 
 run:
@@ -24,9 +28,10 @@ run:
 
 diagram:
   caption: >
-    Every authorization goes to the fraud rule's queue and out to whoever
-    subscribes. The rule publishes a flag back onto the same stream, so the
-    regional desk sees authorizations and flags through one subscription.
+    Every event is published under united/booking/payment/. Each app takes its
+    own subset: the fraud rule's queue subscribes to every authorization and
+    none of the flags, and the US desk's wildcard takes both event types for
+    one region. The labels show each subscription after that shared prefix.
   duration: 2.2
   liveWhen: gateway
   nodes:
@@ -41,7 +46,7 @@ diagram:
           semp: /msgVpns/{vpn}/clientUsernames/svc-streaming-gateway
     - id: broker
       label: Solace Broker
-      sublabel: the stream
+      sublabel: united/booking/payment/>
       kind: broker
       col: 1
       action: apply
@@ -63,7 +68,7 @@ diagram:
           semp: /msgVpns/{vpn}/clientUsernames/svc-streaming-fraud
     - id: watch
       label: US Desk
-      sublabel: payment/*/v1/us/>
+      sublabel: direct, one region
       kind: app
       col: 2
       action: watch
@@ -80,10 +85,11 @@ diagram:
       delay: 0.2
     - from: broker
       to: fraud
+      label: "queue: authorized/v1/>"
       delay: 0.8
     - from: broker
       to: watch
-      label: us only
+      label: "*/v1/us/>"
       delay: 1.0
     - from: fraud
       to: broker
@@ -98,8 +104,10 @@ actions:
     tf_dir: tf
     variant: primary
     description: >
-      Creates the fraud rule's queue, subscribed to every authorization, plus
-      the client profile, ACL profile and three client usernames.
+      Creates the fraud rule's queue with the subscription
+      united/booking/payment/authorized/v1/>, so it collects every
+      authorization in every region and none of the flags. Also creates the
+      client profile, ACL profile and three client usernames.
 
   - id: build
     label: Build the apps
@@ -131,6 +139,8 @@ actions:
     long_running: true
     variant: secondary
     description: >
+      Reads q.streaming.fraud, which only ever holds authorizations: the
+      queue's subscription leaves out the flags this rule publishes itself.
       Keeps a rolling ten-second window per card and publishes a flag when a
       card crosses three authorizations inside it. The window is in memory,
       so restarting this rebuilds it from the stream.
@@ -143,9 +153,10 @@ actions:
     long_running: true
     variant: secondary
     description: >
-      Subscribes to one region with a wildcard that covers both authorized
-      and flagged events. Payments in the other two regions never reach this
-      app, without it filtering anything itself.
+      Subscribes directly to united/booking/payment/*/v1/us/>. The * takes
+      both authorized and flagged events, and the us level takes one region.
+      Payments in the other two regions never reach this app, without it
+      filtering anything itself.
 
   - id: reconcile
     label: Reconcile with broker
@@ -234,6 +245,11 @@ failure_modes:
       - start: watch
 
 inspect:
+  - label: Fraud queue subscription
+    kind: semp
+    path: /msgVpns/{vpn}/queues/q.streaming.fraud/subscriptions?count=10
+    columns: [queueName, subscriptionTopic]
+    ui_hint: Manager → Queues → q.streaming.fraud → Subscriptions
   - label: Stream queue
     kind: semp
     api: monitor

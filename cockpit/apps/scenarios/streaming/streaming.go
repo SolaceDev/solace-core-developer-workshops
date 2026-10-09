@@ -244,7 +244,7 @@ func Watch(args []string) {
 	}
 
 	solace.Subscribe(*role, *user, rcv, *sub)
-	solace.Logf(*role, "one wildcard covers both authorized and flagged, and the region level pins it to us.")
+	solace.Logf(*role, "subscribed to %s: the * takes authorized and flagged, the region level takes one region.", *sub)
 
 	solace.WaitForStop()
 	mu.Lock()

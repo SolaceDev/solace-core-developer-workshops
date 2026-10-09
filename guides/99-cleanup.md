@@ -44,7 +44,7 @@ binary.
 
 ## What you built
 
-Nine sections: a configuration tour, publish and subscribe, the five patterns
+Eight sections: a configuration tour, publish and subscribe, four patterns
 from the Real Time Data Deep Dives series, and two capstones that compose
 them.
 

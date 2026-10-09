@@ -84,4 +84,4 @@ cause and where you would meet it in production.
 - Change the sink's subscription to `namer` and confirm it sees exactly the
   vehicles it did not before.
 
-Next: [Command and query](60-cqrs.md).
+Next: [Streaming](70-streaming.md).

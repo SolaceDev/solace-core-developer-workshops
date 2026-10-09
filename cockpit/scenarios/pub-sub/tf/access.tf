@@ -4,8 +4,8 @@
 # One client profile shared by everything, and a separate ACL profile per role.
 # That split is the point of the scenario: capability (what a client may do to
 # the broker) is a different question from authority (which topics it may
-# touch), and here four clients share one capability set while each gets its
-# own topic authority.
+# touch), and here the publisher and the subscriber share one capability set
+# while each gets its own topic authority.
 #
 # Topics follow acme/air/<domain>/<event>/<version>/<key>:
 #   acme/air/flight/departed/v1/{flight}
@@ -13,7 +13,7 @@
 #   acme/air/booking/confirmed/v1/{record}
 # ---------------------------------------------------------------------------
 
-# All four clients assume this one profile. Direct messaging only -- no
+# Both clients assume this one profile. Direct messaging only -- no
 # guaranteed send or receive, no endpoint creation -- because this scenario is
 # about topics and subscriptions, not about queues.
 resource "solacebroker_msg_vpn_client_profile" "acme_air_direct" {
@@ -50,26 +50,18 @@ resource "solacebroker_msg_vpn_acl_profile_publish_topic_exception" "ops_publish
 }
 
 # ---------------------------------------------------------------------------
-# Subscribers: each may subscribe to exactly one domain and publish nothing.
+# Subscriber: may subscribe to one domain and publish nothing.
 #
-# Deliberately narrow. The flight-ops service cannot read booking records, and
-# the booking service cannot see baggage movements, even though all three are
-# connected to the same broker with the same client profile.
+# The ACL grants the whole baggage domain. The app subscribes to less than
+# that (acme/air/baggage/*/v1/*, set in scenario.yaml): the ACL is the ceiling
+# on what a client may ask for, and the subscription is what it actually asks
+# for. The flight and booking domains are out of reach either way.
 # ---------------------------------------------------------------------------
 
 locals {
   # role => the one topic pattern that role is allowed to subscribe to.
-  #
-  # The first three take a whole domain with a multi-level wildcard. Audit
-  # takes the other shape: two single-level wildcards and a fixed key, which
-  # reads as "every domain and every action, but only for flight AC8763".
-  # Having both on screen at once is what makes the difference between > and *
-  # concrete rather than a bullet point in a slide.
   subscribers = {
-    flight-ops = "acme/air/flight/>"
-    baggage    = "acme/air/baggage/>"
-    booking    = "acme/air/booking/>"
-    audit      = "acme/air/*/*/v1/AC8763"
+    baggage = "acme/air/baggage/>"
   }
 }
 

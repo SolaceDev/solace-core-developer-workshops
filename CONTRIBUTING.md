@@ -35,7 +35,7 @@ The Codespace runs the prebuilt image `ghcr.io/solacedev/solace-core-workshop`.
 It already has Go, the C toolchain the Solace Go API needs (cgo), Terraform,
 Docker-in-Docker, the GitHub CLI and the dashboard's Python virtualenv
 (`COCKPIT_VENV`). Its Go build cache and Terraform provider cache are warmed
-from this repo's `core-workshops` branch, so the first build and the first
+from this repo's `main` branch, so the first build and the first
 `terraform init` are quick. The image is built and published from
 [solace-developer-workshops-infra](https://github.com/SolaceDev/solace-developer-workshops-infra/tree/main/core-workshop-image);
 rebuild it there after changing `cockpit/requirements.txt`, `go.mod` or a

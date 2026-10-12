@@ -1199,7 +1199,8 @@ a { color: var(--text-link); }
   fill: var(--green-bright);
 }
 
-.dg.is-idle .dg-packet { opacity: 0; }
+.dg.is-idle .dg-packet,
+.dg-packet.is-idle { opacity: 0; }
 
 /* Reduced motion is handled in diagram.js -- SMIL animation cannot be stopped
    from CSS -- which parks each packet midway along its path. This only softens

@@ -81,6 +81,16 @@ def check(path: pathlib.Path) -> list[str]:
         if mode.get("node") and mode["node"] not in node_ids:
             bad.append(f"failure mode {mid!r} marks missing diagram node {mode['node']!r}")
 
+    boxes = {c.get("id") for n in spec.get("diagram", {}).get("nodes", [])
+             for c in n.get("contains", []) or []}
+    for flow in spec.get("diagram", {}).get("flows", []) or []:
+        if flow.get("via") and flow["via"] not in boxes:
+            bad.append(f"diagram flow via {flow['via']!r} is not a box the broker contains")
+        src = flow.get("source")
+        for s in ([src] if isinstance(src, str) else src or []):
+            if s not in node_ids:
+                bad.append(f"diagram flow source {s!r} is not a node")
+
     live = spec.get("diagram", {}).get("liveWhen")
     if live and live not in node_ids:
         bad.append(f"diagram liveWhen {live!r} is not a node")

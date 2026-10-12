@@ -36,7 +36,7 @@ After a minute or so, suppression settles around 80 to 90 percent. Those
 suppressed updates are the writes a polling design would have sent: the
 database reads it would have made and the tag batteries it would have spent.
 
-Confirm it independently under **On the broker**. Compare `lastSpooledMsgId` on
+Confirm it independently under **On the broker**. Compare `spooledMsgCount` on
 `q.shelf.pricing` (every reading) with `q.shelf.labels` (only real changes).
 The gap is the same story from the broker's side.
 

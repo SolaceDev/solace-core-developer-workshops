@@ -44,7 +44,7 @@ consumers should tolerate a repeat.
 The router is not in the Play sequence. Its queue has been subscribed to the
 enriched topic since you pressed Play, so look at `q.processor.router` under **On the broker**: it has a backlog.
 
-Start **Start the router (late)**. It drains that backlog, then keeps pace.
+Press **Start the router (late)**. It drains that backlog, then keeps pace.
 Neither the enricher nor the sink was restarted or reconfigured.
 
 The router maps the plant to a region and writes it into the topic:

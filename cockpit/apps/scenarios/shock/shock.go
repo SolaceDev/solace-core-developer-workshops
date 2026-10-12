@@ -59,7 +59,7 @@ func Scan(args []string) {
 	defer solace.Terminate(pub)
 
 	solace.Logf(*role, "publishing bursts of %d scans every %s. Press Stop to end.", *burst, *every)
-	solace.Logf(*role, "watch the queue depth in Inspect: it should climb during a burst and drain after it.")
+	solace.Logf(*role, "watch the queue depth under On the broker: it should climb during a burst and drain after it.")
 	fmt.Println()
 
 	stop := make(chan struct{})
@@ -69,6 +69,9 @@ func Scan(args []string) {
 	// these strictly increasing for its own belts, which is how per-key
 	// ordering is demonstrated rather than asserted.
 	seq := map[string]int{}
+	// Sequences restart with each scanner run, so every scan also carries the
+	// run it came from and a worker compares sequences only within one run.
+	run := time.Now().UnixMilli()
 
 	for round := 1; ; round++ {
 		fmt.Printf("--- burst %d: %d scans ---\n", round, *burst)
@@ -78,8 +81,8 @@ func Scan(args []string) {
 			seq[belt]++
 			bagTag := fmt.Sprintf("AC%06d", rand.Intn(999999))
 			topic := fmt.Sprintf("acme/air/baggage/scanned/v1/%s/%s", belt, bagTag)
-			payload := fmt.Sprintf(`{"bagTag":"%s","belt":"%s","seq":%d,"flight":"AC8763","at":"%s"}`,
-				bagTag, belt, seq[belt], time.Now().UTC().Format(time.RFC3339Nano))
+			payload := fmt.Sprintf(`{"bagTag":"%s","belt":"%s","run":%d,"seq":%d,"flight":"AC8763","at":"%s"}`,
+				bagTag, belt, run, seq[belt], time.Now().UTC().Format(time.RFC3339Nano))
 
 			// The belt is the partition key. The application decides what the
 			// key means; the broker guarantees same key, same partition, same
@@ -159,6 +162,7 @@ func Work(args []string) {
 	handled, failed, rejected, redelivered := 0, 0, 0, 0
 	// Highest sequence seen per belt, used to prove ordering holds per key.
 	lastSeq := map[string]int{}
+	lastRun := map[string]int{}
 
 	if err := rcv.ReceiveAsync(func(msg message.InboundMessage) {
 		// The delay is before settlement, so an unacked message really is
@@ -175,7 +179,13 @@ func Work(args []string) {
 		key, hasKey := solace.MessageKey(msg)
 		var orderNote string
 		if *showKey && hasKey {
-			if s, ok := seqOf(solace.PayloadOf(msg)); ok {
+			payload := solace.PayloadOf(msg)
+			s, ok := numberOf(payload, "seq")
+			run, _ := numberOf(payload, "run")
+			if ok && run > lastRun[key] {
+				// A newer scanner run starts its sequences again.
+				lastRun[key], lastSeq[key] = run, s
+			} else if ok && run == lastRun[key] {
 				if s > lastSeq[key] {
 					lastSeq[key] = s
 				} else {
@@ -183,6 +193,8 @@ func Work(args []string) {
 					// guarantee was not holding, so say so loudly.
 					orderNote = fmt.Sprintf("  OUT OF ORDER for belt %s (saw %d after %d)", key, s, lastSeq[key])
 				}
+			} else if ok {
+				orderNote = fmt.Sprintf("  OUT OF ORDER for belt %s (a scan from an earlier scanner run)", key)
 			}
 		}
 		mu.Unlock()
@@ -230,10 +242,10 @@ func Work(args []string) {
 	solace.Logf(*role, "anything still unacknowledged goes back on the queue for another consumer.")
 }
 
-// seqOf pulls the "seq" field out of a scan payload without a full JSON parse,
-// which keeps the hot path cheap during a burst.
-func seqOf(payload string) (int, bool) {
-	const key = `"seq":`
+// numberOf pulls a numeric field out of a scan payload without a full JSON
+// parse, which keeps the hot path cheap during a burst.
+func numberOf(payload, field string) (int, bool) {
+	key := `"` + field + `":`
 	i := strings.Index(payload, key)
 	if i < 0 {
 		return 0, false

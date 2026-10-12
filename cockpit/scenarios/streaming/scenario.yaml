@@ -50,8 +50,12 @@ diagram:
       kind: broker
       col: 1
       action: apply
+      contains:
+        - id: fraud
+          label: q.streaming.fraud
       provides:
         - label: q.streaming.fraud
+          group: fraud
           semp: /msgVpns/{vpn}/queues/q.streaming.fraud
         - label: cp-streaming
           semp: /msgVpns/{vpn}/clientProfiles/cp-streaming
@@ -85,6 +89,7 @@ diagram:
       delay: 0.2
     - from: broker
       to: fraud
+      via: fraud
       label: "queue: authorized/v1/>"
       delay: 0.8
     - from: broker
@@ -157,6 +162,18 @@ actions:
       both authorized and flagged events, and the us level takes one region.
       Payments in the other two regions never reach this app, without it
       filtering anything itself.
+
+  - id: fraud-2
+    label: Start a second fraud rule
+    kind: process
+    cmd: [bash, ../../apps/run.sh, streaming, fraud, --role, fraud-2]
+    cwd: .
+    long_running: true
+    variant: secondary
+    description: >
+      A second instance on the same non-exclusive queue. The broker shares
+      the authorizations between the two, so each keeps a window over only
+      its half of the stream. Compare the flag counts in the two panes.
 
   - id: reconcile
     label: Reconcile with broker
@@ -253,7 +270,7 @@ inspect:
   - label: Stream queue
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/queues?count=100
+    path: /msgVpns/{vpn}/queues?count=100&where=queueName==q.streaming.*
     columns: [queueName, accessType, msgSpoolUsage, lastSpooledMsgId, highestAckedMsgId]
     ui_hint: Manager → Queues
   - label: Fraud rule consumers
@@ -268,6 +285,6 @@ inspect:
   - label: Connected Clients
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/clients?count=100
+    path: /msgVpns/{vpn}/clients?count=100&where=clientUsername==svc-streaming-*
     columns: [clientName, clientUsername, dataRxMsgCount, dataTxMsgCount]
     ui_hint: Manager → Clients

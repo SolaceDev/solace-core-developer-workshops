@@ -113,15 +113,19 @@ diagram:
       delay: 0.3
     - from: broker
       to: worker1
+      via: scans
       delay: 0.9
     - from: broker
       to: worker2
+      via: scans
       delay: 1.1
     - from: broker
       to: worker3
+      via: scans
       delay: 1.3
     - from: broker
       to: nacker
+      via: scans
       delay: 1.5
 
 actions:
@@ -199,7 +203,7 @@ actions:
     description: >
       Settles every seventh message FAILED, so the broker redelivers it, and
       every thirteenth REJECTED, so it goes straight to the dead message
-      queue. Watch q.shock.dmq start filling in Inspect.
+      queue. Watch q.shock.dmq start filling under On the broker.
 
   - id: part-1
     label: Start partition worker 1
@@ -322,7 +326,7 @@ inspect:
   - label: Queues
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/queues?count=100
+    path: /msgVpns/{vpn}/queues?count=100&where=queueName==q.shock.*
     # msgSpoolUsage is the live backlog in bytes and returns to zero once a
     # queue drains. spooledMsgCount is cumulative on this broker and never
     # falls, so it would read as a permanent backlog. The gap between

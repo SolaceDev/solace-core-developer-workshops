@@ -47,7 +47,7 @@ Nothing was lost. A consumer crashing is a redelivery, not a gap.
 
 ## When a message cannot be processed
 
-Start **Start failing worker**. It settles every seventh message `FAILED`,
+Press **Start failing worker**. It settles every seventh message `FAILED`,
 which puts it back on the queue to be tried again, and every thirteenth
 `REJECTED`, which sends it straight to `q.shock.dmq`.
 
@@ -60,9 +60,11 @@ rather than dropped so someone can look at it.
 Competing consumers give up ordering. Two workers can process two scans from
 the same belt at the same time, in either order.
 
-Stop the workers and start **partition worker 1** and **partition worker 2**
-together. Wait about ten seconds for the broker to assign partitions, then
-start the scanner.
+Stop the scanner and the workers. The partitioned queue has been collecting
+every scan since Play, so start **partition worker 1** and **partition worker
+2** together and let them drain that backlog. While they drain, the broker is
+still handing partitions between them. Once both panes are quiet, start the
+scanner again and compare only what arrives after that.
 
 These read `q.shock.scans.partitioned`, which has three partitions. Every
 scan carries its belt as a partition key, so all scans for one belt go to one
@@ -93,8 +95,9 @@ cause and where you would meet it in production.
 
 ## Try this
 
-- Start a third partition worker and watch the broker rebalance.
-- Set a burst larger than the 50MB quota and see what the broker does when a
-  queue fills.
+- Stop one partition worker and watch the broker hand its partitions to the
+  other after a few seconds.
+- Stop every worker and leave the scanner running. Watch `msgSpoolUsage` on
+  `q.shock.scans` keep climbing: the queue holds what nobody is ready for.
 
 Next: [Processor](50-processor.md).

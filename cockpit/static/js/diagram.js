@@ -119,8 +119,11 @@ const Diagram = (() => {
     /* Flows enter a processor from above and leave below, so a diagram with
        one needs room over its top node and under its bottom one. */
     const hasProcessor = nodes.some(isProcessor);
+    /* A queue box drawn level with the lane into the top processor has to
+       clear the broker's own label, so that lane moves down to make room. */
+    const viaTop = hasProcessor && flows.some((f) => f.via) ? QUEUE_HEADROOM : 0;
     const padY = PAD_Y + (hasProcessor ? PROC_HEADROOM : 0);
-    const canvasH = padY * 2 + Math.max(...colIndexes.map(colHeight));
+    const canvasH = padY * 2 + viaTop + Math.max(...colIndexes.map(colHeight));
 
     /* Column width is set by its widest member, so a column containing the
        broker and its configuration is wider than one holding subscribers,
@@ -145,7 +148,7 @@ const Diagram = (() => {
     const placed = new Map();
     colIndexes.forEach((col) => {
       const members = columns.get(col);
-      const top = (canvasH - colHeight(col)) / 2;
+      const top = viaTop + (canvasH - viaTop - colHeight(col)) / 2;
       let y = top;
       members.forEach((n, i) => {
         if (i) y += rowGap(members[i - 1], n);
@@ -237,12 +240,13 @@ const Diagram = (() => {
        is the whole point: an object on the broker is part of the broker, not
        a separate destination something is sent to. */
     (n.contains || []).forEach((child, i) => {
-      const cyTop = n.y + CHILD_TOP + i * (CHILD_H + CHILD_GAP);
+      const box = n.childBoxes?.get(child.id);
+      const cyTop = box ? box.y : n.y + CHILD_TOP + i * (CHILD_H + CHILD_GAP);
       const kid = el("g", { class: "dg-node__child", "data-child": child.id || "" });
 
       kid.append(el("rect", {
         x: n.x + CHILD_INSET, y: cyTop,
-        width: n.w - CHILD_INSET * 2, height: CHILD_H,
+        width: n.w - CHILD_INSET * 2, height: box ? box.h : CHILD_H,
         rx: 5, class: "dg-node__child-box",
       }));
       kid.append(el("text", {
@@ -338,6 +342,9 @@ const Diagram = (() => {
   const PROC_CORNER = 10;
   // Room above the top processor and below the bottom one for their lanes.
   const PROC_HEADROOM = 36;
+  /* Extra room above the top processor when a queue box sits on its lane:
+     enough to put that lane below the broker's label. */
+  const QUEUE_HEADROOM = CHILD_TOP + CHILD_H / 2 + PROC_LANE - PROC_HEADROOM;
 
   function processorPath(from, to) {
     const r = PROC_CORNER;
@@ -377,15 +384,23 @@ const Diagram = (() => {
       const key = `${node.id}:${side}`;
       if (!sides.has(key)) sides.set(key, { node, side, nx, ny, lanes: new Map() });
       const lanes = sides.get(key).lanes;
-      const lane = `${other.id}${leaving ? ">" : "<"}`;
+      /* Consumers of one queue leave the broker from one point, the queue's
+         box, so competing consumers read as a fan out of a single queue. */
+      const via = leaving && flows[i].via;
+      const lane = via ? `via:${via}` : `${other.id}${leaving ? ">" : "<"}`;
       if (!lanes.has(lane)) {
         lanes.set(lane, {
-          otherY: other.y + other.h / 2,
+          otherY: 0,
+          n: 0,
           back: leaving ? isBack(node, other) : isBack(other, node),
           uses: [],
         });
       }
-      lanes.get(lane).uses.push([i, leaving ? 0 : 1]);
+      const l = lanes.get(lane);
+      // Aim a shared point at the middle of everything it feeds.
+      l.otherY = (l.otherY * l.n + other.y + other.h / 2) / (l.n + 1);
+      l.n += 1;
+      l.uses.push([i, leaving ? 0 : 1]);
     };
 
     flows.forEach((f, i) => {
@@ -418,6 +433,68 @@ const Diagram = (() => {
     return ends;
   }
 
+  /* Where each queue box sits inside the broker, so a line to a consumer
+     visibly starts at the queue it reads (`via:` on the flow).
+
+     A broker sized to its boxes has no spare room, so there the boxes keep
+     their stacked slots and the lines leave from them. A broker running the
+     height of a processor diagram has room, and its lanes into processors
+     sit at fixed heights, so there each box moves level with its lines,
+     spanning them if they leave at different heights, and the boxes nothing
+     leaves through fill the space left over. */
+  function placeQueueBoxes(broker, flows, placed, ports) {
+    const kids = broker.contains || [];
+    if (!kids.some((c) => flows.some((f) => f.via === c.id))) return null;
+
+    if (![...placed.values()].some(isProcessor)) {
+      kids.forEach((c, k) => {
+        const mid = broker.y + CHILD_TOP + k * (CHILD_H + CHILD_GAP) + CHILD_H / 2;
+        flows.forEach((f, i) => {
+          if (f.via === c.id && f.from === broker.id && ports[i][0]) ports[i][0].y = mid;
+        });
+      });
+      return null;
+    }
+
+    const top = broker.y + CHILD_TOP;
+    const bottom = broker.y + broker.h - CHILD_BOTTOM;
+    const half = CHILD_H / 2;
+    const clamp = (y) => Math.min(Math.max(y, top + half), bottom - half);
+
+    const boxes = new Map();
+    for (const c of kids) {
+      const ys = [];
+      flows.forEach((f, i) => {
+        if (f.via !== c.id || f.from !== broker.id) return;
+        const to = placed.get(f.to);
+        if (!to) return;
+        if (isProcessor(to)) {
+          ys.push(to.y - PROC_LANE);
+        } else if (ports[i][0]) {
+          ports[i][0].y = clamp(ports[i][0].y);
+          ys.push(ports[i][0].y);
+        }
+      });
+      if (!ys.length) continue;
+      const y1 = clamp(Math.min(...ys)) - half;
+      const y2 = clamp(Math.max(...ys)) + half;
+      boxes.set(c.id, { y: y1, h: y2 - y1 });
+    }
+
+    // Fill the gaps from the top with the boxes nothing leaves through.
+    const taken = [...boxes.values()];
+    const clash = (y) => taken.some((b) => y < b.y + b.h + CHILD_GAP && y + CHILD_H + CHILD_GAP > b.y);
+    for (const c of kids) {
+      if (boxes.has(c.id)) continue;
+      let y = top;
+      while (clash(y) && y + CHILD_H < bottom) y += 2;
+      const box = { y, h: CHILD_H };
+      boxes.set(c.id, box);
+      taken.push(box);
+    }
+    return boxes;
+  }
+
   function render(host, diagram, handlers = {}) {
     host.replaceChildren();
     const nodes = diagram.nodes || [];
@@ -447,6 +524,9 @@ const Diagram = (() => {
       && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const ports = assignPorts(flows, placed);
+    for (const n of placed.values()) {
+      if (n.kind === "broker") n.childBoxes = placeQueueBoxes(n, flows, placed, ports);
+    }
 
     flows.forEach((f, i) => {
       const from = placed.get(f.from);
@@ -501,7 +581,7 @@ const Diagram = (() => {
       /* The moving part. Each flow's packet is offset in time so a fan-out
          reads as one message being copied outward rather than three unrelated
          dots, and `dur` is uniform so speed stays consistent across scenarios. */
-      const packet = el("circle", { r: 5, class: "dg-packet" });
+      const packet = el("circle", { r: 5, class: "dg-packet", "data-flow": i });
 
       /* SMIL animation is not controlled by CSS, so honouring reduced motion
          means not creating the animation at all. The packet is parked midway
@@ -555,7 +635,50 @@ const Diagram = (() => {
 
      Called on every poll, so it only ever updates attributes -- re-rendering
      would restart the SMIL animations and make the packets stutter. */
-  function paint(host, diagram, state) {
+  /* Which flows carry traffic right now, as a Set of flow indexes.
+
+     A node with a long-running action is live only while that process runs;
+     anything else (the broker, a terraform node) is always live. An app
+     publishes when it is live and either is a source (nothing flows into it)
+     or one of the flows into it is carrying traffic. A flow from the broker
+     to an app needs that app running and something feeding it: the nodes in
+     the flow's `source:` if given, otherwise any source publishing to the
+     broker. `source:` is how a consumer at the end of a processor chain says
+     it only sees what the processor before it republished. */
+  function liveFlows(diagram, state, gated) {
+    const flows = diagram.flows || [];
+    const running = (id) => !gated.has(id) || Boolean(state.nodes?.[id]?.running);
+    const brokerId = (diagram.nodes || []).find((n) => n.kind === "broker")?.id;
+    const into = (id) => flows.filter((f) => f.to === id);
+    const isSource = (id) => !into(id).some((f) => f.from === brokerId);
+    const sources = [...new Set(flows
+      .filter((f) => f.to === brokerId && isSource(f.from)).map((f) => f.from))];
+
+    const memo = new Map();
+    const publishing = (id, seen = new Set()) => {
+      if (memo.has(id)) return memo.get(id);
+      if (seen.has(id)) return false;
+      seen.add(id);
+      const on = running(id) && (isSource(id)
+        || into(id).some((f) => flowLive(f, seen)));
+      memo.set(id, on);
+      return on;
+    };
+    const flowLive = (f, seen = new Set()) => {
+      if (f.from !== brokerId) return publishing(f.from, seen);
+      if (!running(f.to)) return false;
+      const feed = f.source ? [].concat(f.source) : sources;
+      return feed.some((s) => publishing(s, new Set(seen)));
+    };
+
+    const live = new Set();
+    flows.forEach((f, i) => { if (flowLive(f)) live.add(i); });
+    return live;
+  }
+
+  /* `gated` lists the node ids whose action is a long-running process, so
+     their packets follow whether that process is running. */
+  function paint(host, diagram, state, gated = new Set()) {
     const svg = host.querySelector(".dg");
     if (!svg || !state) return;
 
@@ -600,11 +723,16 @@ const Diagram = (() => {
       }
     }
 
-    /* Packets move only while the node named by `liveWhen` is running, so a
-       stopped publisher cannot leave the diagram implying traffic. */
+    /* Packets move only on flows that carry traffic, so a stopped app never
+       has dots arriving at it or leaving it. `liveWhen` still gates the whole
+       picture on one node, for scenarios that want that. */
     const gate = diagram.liveWhen;
     const flowing = !gate || Boolean(state.nodes?.[gate]?.running);
     svg.classList.toggle("is-idle", !flowing);
+    const live = liveFlows(diagram, state, gated);
+    for (const packet of svg.querySelectorAll(".dg-packet[data-flow]")) {
+      packet.classList.toggle("is-idle", !live.has(Number(packet.dataset.flow)));
+    }
   }
 
   return { render, paint };

@@ -58,13 +58,14 @@ and `apac` never reach it. Data residency becomes a subscription, which the
 broker enforces, rather than a rule each application has to be trusted to
 implement.
 
-Neither app filters anything in code. Compare the gateway's log with the
-desk's: roughly one line in three makes it to the desk.
+Neither app filters anything in code. Compare the gateway's latest `#n` with
+the desk's running "authorized" total: the desk sees roughly one payment in
+three, the ones made in `us`.
 
 ## What a second instance would cost
 
 The fraud rule's queue is non-exclusive, so you can start a second instance.
-Try it, and think about what happens.
+Try it with **Start a second fraud rule**, and think about what happens.
 
 Each instance gets roughly half the stream and keeps its own window. Neither
 sees all the authorizations for a given card, so a card doing four in ten
@@ -90,9 +91,12 @@ cause and where you would meet it in production.
 ## Try this
 
 - Lower the threshold to 2 and watch the false positives appear. Rules like
-  this are a tuning exercise, not a truth.
-- Start a second fraud rule and confirm the flag count drops rather than
-  doubling.
+  this are a tuning exercise, not a truth. From a terminal, stop the fraud
+  rule and run `bash cockpit/apps/run.sh streaming fraud --threshold 2`.
+- With both fraud rules running, compare the counts in their FLAG lines
+  ("4 in 10s") with what one rule saw alone. Each now sees about half of a
+  card's authorizations, so a card just over the threshold stops being
+  flagged.
 - Run a desk for another region by hand and predict what it receives first:
 
   ```bash

@@ -262,13 +262,13 @@ failure_modes:
 inspect:
   - label: Client Usernames
     kind: semp
-    path: /msgVpns/{vpn}/clientUsernames?count=100
+    path: /msgVpns/{vpn}/clientUsernames?count=100&where=clientUsername==svc-acme-air-*
     columns: [clientUsername, enabled, clientProfileName, aclProfileName]
     ui_hint: Manager → Access Control → Client Usernames
 
   - label: ACL Profiles
     kind: semp
-    path: /msgVpns/{vpn}/aclProfiles?count=100
+    path: /msgVpns/{vpn}/aclProfiles?count=100&where=aclProfileName==acl-acme-air-*
     columns:
       - aclProfileName
       - clientConnectDefaultAction
@@ -279,6 +279,6 @@ inspect:
   - label: Connected Clients
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/clients?count=100
+    path: /msgVpns/{vpn}/clients?count=100&where=clientUsername==svc-acme-air-*
     columns: [clientName, clientUsername, dataRxMsgCount, dataTxMsgCount]
     ui_hint: Manager → Clients

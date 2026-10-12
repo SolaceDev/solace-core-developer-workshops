@@ -207,8 +207,10 @@ class ProcessManager:
         return run
 
     async def stop(self, key: str) -> bool:
+        """Stop the run under `key`. True only if it was still running, so
+        callers counting what they stopped do not count finished steps."""
         run = self._runs.get(key)
-        if run is None:
+        if run is None or not run.is_active:
             return False
         await run.stop()
         return True

@@ -41,6 +41,17 @@ fi
 
 mkdir -p "$STATE_DIR"
 
+# Reconcile can be the first terraform command a scenario ever runs (a fresh
+# Codespace against an already-configured broker), so make sure the provider
+# is installed. The dashboard does this itself before apply and destroy.
+if ! terraform -chdir="$TF_DIR" validate -no-color >/dev/null 2>&1; then
+  if ! out=$(terraform -chdir="$TF_DIR" init -no-color -input=false -upgrade 2>&1); then
+    echo "terraform init failed:" >&2
+    echo "$out" | tail -5 >&2
+    exit 1
+  fi
+fi
+
 echo "Reconciling terraform state with the broker"
 echo "  scenario: $SCENARIO_ID"
 echo "  state:    $STATE"

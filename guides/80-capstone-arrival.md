@@ -10,8 +10,9 @@ exactly when every passenger is looking at it.
 
 Three patterns compose to fix it. None of them is enough alone.
 
-Press **Play**, then wait about ten seconds before the surge lands so the
-broker can assign partitions between the two routing instances.
+Press **Play**. It starts the two routing instances a few seconds apart and
+the scanner last, which gives the broker time to assign partitions between
+the routing instances before the first bank lands.
 
 ## What each pattern contributes
 
@@ -32,8 +33,10 @@ own consumer. This is the part that saves the passenger app.
 ## The thing to actually watch
 
 Keep the passenger app's pane open during a surge. It reports its rate as it
-goes, and that rate does not move when 500 bags land. Meanwhile the scan
-queue is deep in backlog and routing is minutes behind.
+goes, measured over its last twenty bags. That rate follows how fast routing
+produces statuses, and never the size of the backlog: the passenger app keeps
+up with every status as it arrives. Meanwhile the scan queue is deep in
+backlog and routing is minutes behind.
 
 The passenger app is slow in absolute terms, deliberately: 50ms per lookup.
 The point is not that it is fast, but that its performance is determined by
@@ -72,8 +75,6 @@ cause and where you would meet it in production.
 - Stop routing entirely during a surge. Bag statuses stop being produced, but
   the passenger app keeps serving what it already has, and recovers when
   routing restarts.
-- Start a third routing instance mid-surge and watch the broker rebalance
-  partitions.
 - Work out what would change if the status queue were partitioned by PNR.
 
 Next: [Smart Shelf Pricing](90-capstone-smart-shelf.md).

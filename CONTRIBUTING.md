@@ -169,7 +169,7 @@ Other fields: `confirm:` (a prompt shown before running) and
 diagram:
   caption: What the picture shows.
   duration: 2.6               # seconds for a packet to cross
-  liveWhen: pub               # packets move only while this node's action runs
+  liveWhen: pub               # optional: no packets anywhere unless this node runs
   nodes:
     - id: pub
       label: Order Service
@@ -200,8 +200,11 @@ diagram:
       action: enrich
   flows:
     - { from: pub, to: broker, label: orders, delay: 0 }
-    - { from: broker, to: enrich, delay: 0.6 }
+    - { from: broker, to: enrich, via: queues, delay: 0.6 }   # via: the box it leaves from
     - { from: enrich, to: broker, label: enriched, delay: 1.2 }
+    # A consumer of what a processor republishes names it as its source,
+    # so its packets stop when that processor stops.
+    # - { from: broker, to: sink, source: enrich, delay: 1.8 }
 ```
 
 Rules the checker enforces, because they are what the workshop teaches:

@@ -131,6 +131,17 @@ func PublishKeyed(svc solace.MessagingService, pub solace.PersistentMessagePubli
 	return pub.Publish(msg, resource.TopicOf(topic), nil, nil)
 }
 
+// PublishConfirmed publishes a persistent message and waits for the broker to
+// accept it, for a stage that must not acknowledge its input until its output
+// is safely spooled. A plain Publish returns once the message is buffered.
+func PublishConfirmed(svc solace.MessagingService, pub solace.PersistentMessagePublisher, topic, payload string) error {
+	msg, err := svc.MessageBuilder().BuildWithStringPayload(payload)
+	if err != nil {
+		return err
+	}
+	return pub.PublishAwaitAcknowledgement(msg, resource.TopicOf(topic), 5*time.Second, nil)
+}
+
 // Terminate shuts a lifecycle component down with a short grace period, used
 // via defer so an app leaves the broker cleanly when the cockpit stops it.
 func Terminate(c interface{ Terminate(time.Duration) error }) {

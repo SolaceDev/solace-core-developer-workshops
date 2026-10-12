@@ -90,6 +90,7 @@ diagram:
       delay: 0.2
     - from: broker
       to: pricing
+      via: pricing
       delay: 0.8
     - from: pricing
       to: broker
@@ -97,6 +98,8 @@ diagram:
       delay: 1.4
     - from: broker
       to: labels
+      via: labels
+      source: pricing
       delay: 2.0
 
 actions:
@@ -244,11 +247,12 @@ inspect:
   - label: Readings in, changes out
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/queues?count=100
-    # lastSpooledMsgId on the two queues is the comparison worth making:
+    path: /msgVpns/{vpn}/queues?count=100&where=queueName==q.shelf.*
+    # spooledMsgCount on the two queues is the comparison worth making:
     # q.shelf.pricing counts every reading, q.shelf.labels counts only the
     # price changes. The difference is what polling would have written.
-    columns: [queueName, accessType, msgSpoolUsage, lastSpooledMsgId, highestAckedMsgId]
+    # Message ids are numbered across the whole broker, so they cannot make it.
+    columns: [queueName, accessType, msgSpoolUsage, spooledMsgCount]
     ui_hint: Manager → Queues
   - label: What feeds the pricing engine
     kind: semp
@@ -258,6 +262,6 @@ inspect:
   - label: Connected Clients
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/clients?count=100
+    path: /msgVpns/{vpn}/clients?count=100&where=clientUsername==svc-shelf-*
     columns: [clientName, clientUsername, dataRxMsgCount, dataTxMsgCount]
     ui_hint: Manager → Clients

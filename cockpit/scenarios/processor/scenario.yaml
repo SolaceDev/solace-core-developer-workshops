@@ -101,6 +101,7 @@ diagram:
       delay: 0
     - from: broker
       to: enrich
+      via: assembly
       delay: 0.5
     - from: enrich
       to: broker
@@ -108,6 +109,8 @@ diagram:
       delay: 1.0
     - from: broker
       to: route
+      via: router
+      source: enrich
       delay: 1.5
     - from: route
       to: broker
@@ -115,6 +118,7 @@ diagram:
       delay: 2.0
     - from: broker
       to: sink
+      source: route
       delay: 2.5
 
 actions:
@@ -282,7 +286,7 @@ inspect:
   - label: Stage inboxes
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/queues?count=100
+    path: /msgVpns/{vpn}/queues?count=100&where=queueName==q.processor.*
     # msgSpoolUsage is the live backlog. Before the router starts, its queue
     # is the only one with a non-zero figure.
     columns: [queueName, accessType, msgSpoolUsage, lastSpooledMsgId, highestAckedMsgId]

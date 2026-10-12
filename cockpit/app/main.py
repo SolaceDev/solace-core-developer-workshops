@@ -137,9 +137,10 @@ async def _ensure_tf_init(scenario, action) -> None:
 @app.post("/api/scenarios/{scenario_id}/actions/{action_id}/stop")
 async def stop_action(scenario_id: str, action_id: str):
     key = f"{scenario_id}:{action_id}"
-    if not await manager.stop(key):
-        raise HTTPException(404, f"no run for {key}")
     run = manager.get(key)
+    if run is None:
+        raise HTTPException(404, f"no run for {key}")
+    await manager.stop(key)
     return run.status()
 
 

@@ -87,7 +87,7 @@
   function formatCell(value) {
     if (value === true) return { text: "Yes", cls: "is-true" };
     if (value === false) return { text: "No", cls: "is-false" };
-    if (value === null || value === undefined || value === "") return { text: "—", cls: "is-false" };
+    if (value === null || value === undefined || value === "") return { text: "none", cls: "is-false" };
     if (typeof value === "number") return { text: value.toLocaleString(), cls: "is-mono" };
     return { text: String(value), cls: "is-mono" };
   }
@@ -619,6 +619,20 @@
     }
   }
 
+  /* Play, Pause, Cleanup and the rest restart or stop the apps a failure
+     mode broke, so a card left saying "Broken" afterwards would be wrong, and
+     its Reset would start apps against whatever is left. With no scenario,
+     any failure is cleared. */
+  function forgetFailure(scenarioId) {
+    if (scenarioId && state.failure?.scenarioId !== scenarioId
+        && state.recovered?.scenarioId !== scenarioId) return;
+    state.failure = null;
+    state.recovered = null;
+    closeFailureSocket();
+    markDiagramNode(null, false);
+    // The next run poll repaints the cards with the real running state.
+  }
+
   async function resetFailure(scenario, mode) {
     try {
       await runSteps(scenario, mode.reset);
@@ -862,7 +876,7 @@
             h(
               "div",
               { class: "stat__value" },
-              h("span", { class: "stat__number", text: value === null ? "—" : String(value) }),
+              h("span", { class: "stat__number", text: value === null ? "?" : String(value) }),
               h("span", { class: "stat__unit", text: "on broker" })
             )
           )
@@ -1117,11 +1131,19 @@
     }
   }
 
+  // Diagram nodes driven by a long-running process, whose packets follow it.
+  function gatedNodes(scenario) {
+    const longRunning = new Set(
+      (scenario.actions || []).filter((a) => a.longRunning).map((a) => a.id));
+    return new Set((scenario.diagram?.nodes || [])
+      .filter((n) => longRunning.has(n.action)).map((n) => n.id));
+  }
+
   async function refreshDiagramState(scenario) {
     try {
       state.diagramState = await API.scenarioState(scenario.id);
       const host = document.getElementById("diagram-host");
-      if (host) Diagram.paint(host, scenario.diagram, state.diagramState);
+      if (host) Diagram.paint(host, scenario.diagram, state.diagramState, gatedNodes(scenario));
       // Keep an open Detail tab honest as things start and stop, but update it
       // in place rather than rebuilding: a full re-render on every poll would
       // replace the Start/Stop button out from under a click in progress.
@@ -1205,6 +1227,7 @@
 
   async function transportPlay(scenario) {
     setTransport({ busy: true, status: "Starting..." });
+    forgetFailure(scenario.id);
     try {
       await API.runScenario(scenario.id);
     } catch (err) {
@@ -1218,6 +1241,7 @@
 
   async function transportPause(scenario) {
     setTransport({ busy: true, status: "Stopping..." });
+    forgetFailure(scenario.id);
     try {
       const { stopped } = await API.pauseScenario(scenario.id);
       toast(stopped ? `Paused: stopped ${stopped} process(es)` : "Nothing was running");
@@ -1235,6 +1259,7 @@
     if (!ok) return;
 
     setTransport({ busy: true, status: "Cleaning up..." });
+    forgetFailure(scenario.id);
     try {
       await API.cleanupScenario(scenario.id);
     } catch (err) {
@@ -1266,10 +1291,11 @@
   async function resetScenario(scenario) {
     const ok = window.confirm(
       `Reset ${scenario.title}?\n\nThis stops anything still running and deletes this scenario's ` +
-        `terraform state. Configuration already on the broker is left in place -- run ` +
+        `terraform state. Configuration already on the broker is left in place. Run ` +
         `"Remove configuration" first if you want a clean broker.`
     );
     if (!ok) return;
+    forgetFailure(scenario.id);
     try {
       await API.reset(scenario.id);
       toast(`${scenario.title} reset`);
@@ -1342,6 +1368,7 @@
     el.stopAll.addEventListener("click", async () => {
       try {
         const { stopped } = await API.stopAll();
+        forgetFailure();
         toast(stopped ? `Stopped ${stopped} process(es)` : "Nothing was running");
       } catch (err) {
         toast(err.message, true);
@@ -1362,8 +1389,7 @@
       el.clearBroker.disabled = true;
       try {
         const { deleted, failed } = await API.clearBroker();
-        state.failure = null;
-        state.recovered = null;
+        forgetFailure();
         toast(
           failed.length
             ? `Cleared ${deleted} object(s); ${failed.length} could not be deleted: ${failed[0]}`

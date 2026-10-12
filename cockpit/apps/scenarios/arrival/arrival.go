@@ -45,6 +45,7 @@ type scan struct {
 	Belt   string `json:"belt"`
 	PNR    string `json:"pnr"`
 	Flight string `json:"flight"`
+	Run    int64  `json:"run"`
 	Seq    int    `json:"seq"`
 	At     string `json:"at"`
 }
@@ -74,6 +75,9 @@ func Scanner(args []string) {
 	go func() { solace.WaitForStop(); close(stop) }()
 
 	seq := map[string]int{}
+	// Sequences restart with each scanner run, so every scan also carries the
+	// run it came from and routing compares sequences only within one run.
+	run := time.Now().UnixMilli()
 
 	for bank := 1; ; bank++ {
 		fmt.Printf("--- arrival bank %d: %d bags ---\n", bank, *burst)
@@ -86,11 +90,12 @@ func Scanner(args []string) {
 				Belt:   belt,
 				PNR:    fmt.Sprintf("PNR-%05d", rand.Intn(99999)),
 				Flight: flights[rand.Intn(len(flights))],
+				Run:    run,
 				Seq:    seq[belt],
 				At:     time.Now().UTC().Format(time.RFC3339Nano),
 			}
 			body, _ := json.Marshal(s)
-			topic := fmt.Sprintf("acme/air/baggage/scanned/v1/%s/%s", belt, s.BagTag)
+			topic := fmt.Sprintf("acme/air/arrival/scanned/v1/%s/%s", belt, s.BagTag)
 
 			// The belt is the partition key, so everything on one belt is
 			// routed by one consumer in the order it was scanned.
@@ -152,6 +157,7 @@ func Routing(args []string) {
 	var mu sync.Mutex
 	handled := 0
 	lastSeq := map[string]int{}
+	lastRun := map[string]int64{}
 	outOfOrder := 0
 
 	if err := rcv.ReceiveAsync(func(msg message.InboundMessage) {
@@ -166,9 +172,13 @@ func Routing(args []string) {
 		mu.Lock()
 		handled++
 		n := handled
-		if s.Seq > lastSeq[s.Belt] {
+		switch {
+		case s.Run > lastRun[s.Belt]:
+			// A newer scanner run starts its sequences again.
+			lastRun[s.Belt], lastSeq[s.Belt] = s.Run, s.Seq
+		case s.Run == lastRun[s.Belt] && s.Seq > lastSeq[s.Belt]:
 			lastSeq[s.Belt] = s.Seq
-		} else {
+		default:
 			outOfOrder++
 		}
 		mu.Unlock()
@@ -234,22 +244,36 @@ func Passenger(args []string) {
 	solace.Logf(*role, "serving bag status at a steady %s per lookup, whatever the arrival bank looks like.", *pace)
 	fmt.Println()
 
+	/* The rate is over the last twenty bags, restarting after a quiet spell,
+	   so the wait between arrival banks does not drag it down. An average
+	   since startup would fall between banks and look like the app slowing. */
 	var mu sync.Mutex
-	served := 0
-	start := time.Now()
+	served, windowN := 0, 0
+	var windowStart, last time.Time
 
 	if err := rcv.ReceiveAsync(func(msg message.InboundMessage) {
 		time.Sleep(*pace)
 
 		mu.Lock()
+		now := time.Now()
+		if now.Sub(last) > 2*time.Second {
+			windowStart, windowN = now, 0
+		}
+		last = now
 		served++
-		n := served
-		elapsed := time.Since(start).Seconds()
+		windowN++
+		n, inWindow, elapsed := served, windowN, now.Sub(windowStart).Seconds()
+		if n%20 == 1 {
+			windowStart, windowN = now, 0
+		}
 		mu.Unlock()
 
 		if n%20 == 1 {
-			rate := float64(n) / elapsed
-			fmt.Printf("[%s] %d bags tracked, %.1f per second, still responsive\n", *role, n, rate)
+			if elapsed > 0.2 {
+				fmt.Printf("[%s] %d bags tracked, %.1f per second, still responsive\n", *role, n, float64(inWindow)/elapsed)
+			} else {
+				fmt.Printf("[%s] %d bags tracked, still responsive\n", *role, n)
+			}
 		}
 
 		if err := rcv.Ack(msg); err != nil {

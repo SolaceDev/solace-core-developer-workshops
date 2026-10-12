@@ -71,7 +71,7 @@ resource "solacebroker_msg_vpn_queue" "scans" {
 resource "solacebroker_msg_vpn_queue_subscription" "scans" {
   msg_vpn_name       = var.msg_vpn
   queue_name         = solacebroker_msg_vpn_queue.scans.queue_name
-  subscription_topic = "acme/air/baggage/scanned/v1/>"
+  subscription_topic = "acme/air/arrival/scanned/v1/>"
 }
 
 # The passenger app's own queue. Separate from the scan queue on purpose:

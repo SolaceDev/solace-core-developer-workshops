@@ -1,10 +1,11 @@
 # Fan-out
 
-An order flips to shipped and five teams want to know. In a synchronous
+An order is placed or cancelled and four teams want to know. In a synchronous
 design, each one is a change to the order system. Here the order service
 publishes once and knows about none of them.
 
-Press **Play**. Four consumers, one publisher.
+Press **Play**. Three consumers and one publisher start; the fourth consumer
+joins later.
 
 ## One publish, four deliveries
 
@@ -40,7 +41,7 @@ what is published while it is connected. Nothing is held for it.
 ## Add a consumer to a running system
 
 Analytics is deliberately not in the Play sequence. Let everything else run
-for a while, then start **Start analytics consumer (late)**. It starts
+for a while, then press **Start analytics consumer (late)**. It starts
 receiving on the next publish, and nothing about the publisher changed to
 allow it. It does not see anything published before it connected.
 

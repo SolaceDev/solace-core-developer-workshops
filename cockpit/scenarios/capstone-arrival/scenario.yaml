@@ -106,9 +106,11 @@ diagram:
       delay: 0.3
     - from: broker
       to: routing1
+      via: scans
       delay: 0.9
     - from: broker
       to: routing2
+      via: scans
       delay: 1.1
     - from: routing1
       to: broker
@@ -119,6 +121,8 @@ diagram:
       delay: 1.8
     - from: broker
       to: passenger
+      via: status
+      source: [routing1, routing2]
       delay: 2.3
 
 actions:
@@ -151,7 +155,7 @@ actions:
     variant: secondary
     description: >
       Serves bag status from its own queue at a steady 50ms per lookup. This
-      is the pane to watch during the surge: its rate should not move.
+      is the pane to watch during the surge: it keeps up with every status as it arrives.
 
   - id: routing-1
     label: Start baggage routing 1
@@ -281,7 +285,7 @@ inspect:
   - label: Queues
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/queues?count=100
+    path: /msgVpns/{vpn}/queues?count=100&where=queueName==q.arrival.*
     # During a surge msgSpoolUsage on q.arrival.scans climbs into the tens of
     # thousands of bytes while q.arrival.status stays near zero: the backlog
     # is held where it does no harm, not in front of the passenger app.

@@ -275,19 +275,19 @@ inspect:
   - label: Connected Clients
     kind: semp
     api: monitor
-    path: /msgVpns/{vpn}/clients?count=100
+    path: /msgVpns/{vpn}/clients?count=100&where=clientUsername==svc-hello-*
     columns: [clientName, clientUsername, dataRxMsgCount, dataTxMsgCount]
     ui_hint: Manager → Clients
 
   - label: Client Usernames
     kind: semp
-    path: /msgVpns/{vpn}/clientUsernames?count=100
+    path: /msgVpns/{vpn}/clientUsernames?count=100&where=clientUsername==svc-hello-*
     columns: [clientUsername, enabled, clientProfileName, aclProfileName]
     ui_hint: Manager → Access Control → Client Usernames
 
   - label: ACL Profiles
     kind: semp
-    path: /msgVpns/{vpn}/aclProfiles?count=100
+    path: /msgVpns/{vpn}/aclProfiles?count=100&where=aclProfileName==acl-hello*
     columns:
       - aclProfileName
       - clientConnectDefaultAction

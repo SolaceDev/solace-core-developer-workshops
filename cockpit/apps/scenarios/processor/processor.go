@@ -196,7 +196,7 @@ func runStage(args []string, st stage) {
 		}
 		body, _ := json.Marshal(v)
 
-		if err := solace.PublishKeyed(svc, pub, out, string(body), ""); err != nil {
+		if err := solace.PublishConfirmed(svc, pub, out, string(body)); err != nil {
 			// Do not acknowledge: the message stays on the queue and is
 			// redelivered rather than lost between stages.
 			solace.Errf(*role, "could not republish to %s, leaving the message on the queue: %s", out, err)

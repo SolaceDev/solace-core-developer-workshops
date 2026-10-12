@@ -9,7 +9,9 @@ set -euo pipefail
 
 COCKPIT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$COCKPIT_DIR")"
-VENV="$COCKPIT_DIR/.venv"
+# The workshop image ships a ready virtualenv and points COCKPIT_VENV at it, so
+# a new Codespace starts the dashboard without installing anything.
+VENV="${COCKPIT_VENV:-$COCKPIT_DIR/.venv}"
 PORT="${COCKPIT_PORT:-3000}"
 LOG="$COCKPIT_DIR/.state/cockpit.log"
 

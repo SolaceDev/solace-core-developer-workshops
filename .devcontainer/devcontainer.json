@@ -1,8 +1,6 @@
 {
   "name": "Solace Developer Workshop",
-  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
-  "onCreateCommand": "/bin/bash ${containerWorkspaceFolder}/.devcontainer/onCreate.sh",
-  "waitFor": "onCreateCommand",
+  "image": "ghcr.io/solacedev/solace-core-workshop:latest",
   "updateContentCommand": "/bin/bash cockpit/apps/build.sh",
   "postCreateCommand": {
     "environment": "/bin/bash .devcontainer/configureEnv.sh",
@@ -14,22 +12,6 @@
    "cpus": 4,
    "memory": "16gb",
    "storage": "32gb"
-  },
-  "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {
-      "version": "latest",
-      "enableNonRootDocker": "true",
-      "moby": "true"
-    },
-    "ghcr.io/devcontainers/features/terraform:1": {
-      "version": "latest",
-      "tflint": "none",
-      "terragrunt": "none"
-    },
-    "ghcr.io/devcontainers/features/go:1": {
-      "version": "latest",
-      "installGoTools": false
-    }
   },
   "forwardPorts": [3000, 8080],
   "portsAttributes": {

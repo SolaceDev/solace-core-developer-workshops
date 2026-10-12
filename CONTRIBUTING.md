@@ -31,11 +31,20 @@ Dashboard".
 
 ### What happens when a Codespace starts
 
-`.devcontainer/devcontainer.json` runs these in order:
+The Codespace runs the prebuilt image `ghcr.io/solacedev/solace-core-workshop`.
+It already has Go, the C toolchain the Solace Go API needs (cgo), Terraform,
+Docker-in-Docker, the GitHub CLI and the dashboard's Python virtualenv
+(`COCKPIT_VENV`). Its Go build cache and Terraform provider cache are warmed
+from this repo's `core-workshops` branch, so the first build and the first
+`terraform init` are quick. The image is built and published from
+[solace-developer-workshops-infra](https://github.com/SolaceDev/solace-developer-workshops-infra/tree/main/core-workshop-image);
+rebuild it there after changing `cockpit/requirements.txt`, `go.mod` or a
+provider version, or a new Codespace installs the difference on startup.
+
+`.devcontainer/devcontainer.json` then runs these in order:
 
 | Hook | Script | What it does |
 | --- | --- | --- |
-| `onCreateCommand` | `.devcontainer/onCreate.sh` | Installs the C toolchain the Solace Go API needs (cgo). Included in prebuilds. |
 | `updateContentCommand` | `cockpit/apps/build.sh` | Builds the Go workshop binary into `cockpit/.state/bin/`. Included in prebuilds. |
 | `postCreateCommand` | `configureEnv.sh`, `start_cockpit.sh` | Pulls submodules, registers the Codespace, starts the broker, starts the dashboard. |
 | `postStartCommand` | `setup_broker.sh` | Restarts the broker when a stopped Codespace resumes. |
